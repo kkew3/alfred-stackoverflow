@@ -63,9 +63,9 @@ def validate_env() -> EnvParams:
     logger.debug('Got api_key=%r', api_key)
     client_id = os.environ['client_id']
     logger.debug('Got client_id=%r', client_id)
-    cachedir = Path(os.environ['cachedir']).expanduser()
+    cachedir = Path(os.environ['alfred_workflow_cache'])
     if not cachedir.is_dir():
-        raise FileNotFoundError('cachedir not found: {}'.format(cachedir))
+        cachedir.mkdir()
     logger.debug('Got cachedir=%r', cachedir)
     debug_verbose = os.environ['debug_verbose']
     logger.debug('Got debug_verbose=%r', debug_verbose)
