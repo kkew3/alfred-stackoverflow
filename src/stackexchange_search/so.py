@@ -522,7 +522,7 @@ def do_reveal_icon(cd: CacheDirectory, env: EnvParams) -> None:
 def config_logging():
     logging.basicConfig(
         level='WARNING', format='%(levelname)s@%(name)s: %(message)s')
-    if os.environ['alfred_debug'] == '1':
+    if os.environ.get('alfred_debug', '') == '1':
         logging.getLogger('so').setLevel(logging.DEBUG)
 
 
