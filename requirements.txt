@@ -1,0 +1,4 @@
+requests
+Pillow
+# Installable at https://kkew3.github.io/pip
+alfred-fzf-helper
