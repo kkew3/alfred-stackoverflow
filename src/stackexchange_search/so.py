@@ -12,39 +12,53 @@ from pathlib import Path
 import os
 import hashlib
 import json
-import collections
+from dataclasses import dataclass
 import io
 import logging
 
-Answer = collections.namedtuple('Answer', [
-    'title',
-    'link',
-    'tags',
-    'is_answered',
-    'score',
-])
-Site = collections.namedtuple('Site', [
-    'id_',
-    'name',
-    'audience',
-    'icon_url',
-    'is_meta',
-])
-QuotaInfo = collections.namedtuple('QuotaInfo', [
-    'quota_remaining',
-])
-EnvParams = collections.namedtuple('EnvParams', [
-    'cache_max_age',
-    'ignore_meta_sites',
-    'result_count',
-    'site_id',
-    'site_name',
-    'api_key',
-    'client_id',
-    'cachedir',
-    'debug_verbose',
-    'proxy',
-])
+import requests
+from PIL import Image
+
+
+@dataclass
+class Answer:
+    title: str
+    link: str
+    tags: ty.List[str]
+    is_answered: bool
+    score: int
+
+
+@dataclass
+class Site:
+    id_: str
+    name: str
+    audience: str
+    icon_url: str
+    is_meta: bool
+
+
+@dataclass
+class QuotaInfo:
+    quota_remaining: int
+
+
+@dataclass
+class EnvParams:
+    cache_max_age: int
+    ignore_meta_sites: bool
+    result_count: int
+    site_id: str
+    site_name: str
+    api_key: ty.Optional[str]
+    client_id: ty.Optional[str]
+    proxy: ty.Optional[str]
+
+
+def get_cachedir() -> Path:
+    path = Path(os.environ['alfred_workflow_cache'])
+    path.mkdir(exist_ok=True)
+    return path
 
 
 def validate_env() -> EnvParams:
@@ -59,16 +73,10 @@ def validate_env() -> EnvParams:
     logger.debug('Got site_id=%r', site_id)
     site_name = os.getenv('site_name')
     logger.debug('Got site_name=%r', site_name)
-    api_key = os.environ['api_key']
+    api_key = os.environ['api_key'] or None
     logger.debug('Got api_key=%r', api_key)
-    client_id = os.environ['client_id']
+    client_id = os.environ['client_id'] or None
     logger.debug('Got client_id=%r', client_id)
-    cachedir = Path(os.environ['alfred_workflow_cache'])
-    if not cachedir.is_dir():
-        cachedir.mkdir()
-    logger.debug('Got cachedir=%r', cachedir)
-    debug_verbose = os.environ['debug_verbose']
-    logger.debug('Got debug_verbose=%r', debug_verbose)
     proxy = os.environ['proxy'] or None
     logger.debug('Got proxy=%r', proxy)
     return EnvParams(
@@ -79,8 +87,6 @@ def validate_env() -> EnvParams:
         site_name,
         api_key,
         client_id,
-        cachedir,
-        debug_verbose,
         proxy,
     )
 
@@ -108,8 +114,6 @@ def request_parse_search_api(
     :param site_id: the site ID
     :param env: preconfigured environment parameters
     """
-    import requests
-
     logger = logging.getLogger('so.request_search_api')
     url = 'https://api.stackexchange.com/2.2/search/advanced'
     params = {
@@ -118,9 +122,11 @@ def request_parse_search_api(
         'order': 'desc',
         'sort': 'relevance',
         'site': site_id,
-        'key': env.api_key,
-        'client_id': env.client_id,
     }
+    if env.api_key:
+        params['key'] = env.api_key
+    if env.client_id:
+        params['client_id'] = env.client_id
     if query:
         params['q'] = query
     if tags:
@@ -131,15 +137,19 @@ def request_parse_search_api(
     logger.debug('Done requesting %r for search', url)
 
     answers = []
-    for item in resp['items']:
-        answers.append(
-            Answer(
-                html.unescape(item['title']),
-                item['link'],
-                item['tags'],
-                item['is_answered'],
-                int(item['score']),
-            ))
+    try:
+        for item in resp['items']:
+            answers.append(
+                Answer(
+                    html.unescape(item['title']),
+                    item['link'],
+                    item['tags'],
+                    item['is_answered'],
+                    int(item['score']),
+                ))
+    except KeyError:
+        logger.error('Unexpected response json: %r', resp)
+        raise
     logger.debug('Parsed %d answers out of the request', len(answers))
     answers.sort(key=lambda a: int(a.is_answered), reverse=True)
     qi = QuotaInfo(resp['quota_remaining'])
@@ -153,8 +163,6 @@ def request_parse_sites_api(env: EnvParams) -> ty.List[Site]:
 
     :param env: preconfigured environment parameters
     """
-    import requests
-
     logger = logging.getLogger('so.request_sites_api')
     url = 'https://api.stackexchange.com/2.2/sites'
     sites = []
@@ -165,26 +173,32 @@ def request_parse_sites_api(env: EnvParams) -> ty.List[Site]:
         params = {
             'page': page,
             'pagesize': 100,
-            'key': env.api_key,
-            'client_id': env.client_id,
         }
+        if env.api_key:
+            params['key'] = env.api_key
+        if env.client_id:
+            params['client_id'] = env.client_id
         logger.debug('Requesting %r for sites', url)
         resp = requests.get(url, params, **build_requests_kwargs(env)).json()
         logger.debug('Done requesting %r for sites', url)
 
-        for item in resp['items']:
-            if item['site_state'] == 'closed_beta':
-                logger.info('Ignored %r (closed beta)',
-                            item['api_site_parameter'])
-                continue
-            sites.append(
-                Site(
-                    item['api_site_parameter'],
-                    html.unescape(item['name']),
-                    item['audience'],
-                    item['icon_url'],
-                    item['site_type'] == 'meta_site',
-                ))
+        try:
+            for item in resp['items']:
+                if item['site_state'] == 'closed_beta':
+                    logger.info('Ignored %r (closed beta)',
+                                item['api_site_parameter'])
+                    continue
+                sites.append(
+                    Site(
+                        item['api_site_parameter'],
+                        html.unescape(item['name']),
+                        item['audience'],
+                        item['icon_url'],
+                        item['site_type'] == 'meta_site',
+                    ))
+        except KeyError:
+            logger.error('Unexpected response json: %r', resp)
+            raise
         logger.debug('Parsed %d sites in total out of the request', len(sites))
         has_more = resp['has_more']
         page += 1
@@ -192,6 +206,7 @@ def request_parse_sites_api(env: EnvParams) -> ty.List[Site]:
 
 
 def request_fzf(query: str, candidates: ty.List[str]) -> ty.List[str]:
+    logger = logging.getLogger('so.request_fzf')
     try:
         resp = subprocess.run(['fzf', '--filter', query],
                               input=''.join(map('{}\n'.format, candidates)),
@@ -201,6 +216,8 @@ def request_fzf(query: str, candidates: ty.List[str]) -> ty.List[str]:
     except subprocess.CalledProcessError as err:
         if err.returncode == 1:
             return []
+        logger.error('Error calling: fzf --filter %r', query)
+        raise
     return re.findall(r'(.*)\n', resp.stdout)
 
 
@@ -211,8 +228,8 @@ class CacheDirectory:
     The ``get_XXX_cache`` methods return Path of the target cache file to
     read or write. The returned Path may or may not exist.
     """
-    def __init__(self, env: EnvParams) -> None:
-        self.cachedir = env.cachedir
+    def __init__(self) -> None:
+        self.cachedir = get_cachedir()
         self.key_len = 12
         self.answers_dir = self.cachedir / 'answers'
         with contextlib.suppress(FileExistsError):
@@ -300,9 +317,6 @@ def do_cache_sites(
     env: EnvParams,
 ) -> None:
     """Update cached list of sites and download icons."""
-    from PIL import Image
-    import requests
-
     logger = logging.getLogger('so.do_cache_sites')
     logger.debug('Retrieving StackExchange sites')
     sites = request_parse_sites_api(env)
@@ -500,17 +514,15 @@ def do_search(
 def do_reveal_icon(cd: CacheDirectory, env: EnvParams) -> None:
     icon_path = cd.get_site_icon_cache(env.site_id)
     if not icon_path.is_file():
-        icon_path = Path('icon.png')
-    subprocess.run(
-        ['osascript', 'src/reveal_icon.applescript',
-         str(icon_path)],
-        check=True)
+        icon_path = 'icon.png'
+    subprocess.run(['open', '-R', str(icon_path)], check=True)
 
 
-def config_logging(env: EnvParams):
+def config_logging():
     logging.basicConfig(
         level='WARNING', format='%(levelname)s@%(name)s: %(message)s')
-    logging.getLogger('so').setLevel(env.debug_verbose)
+    if os.environ['alfred_debug'] == '1':
+        logging.getLogger('so').setLevel(logging.DEBUG)
 
 
 def make_parser():
@@ -522,8 +534,8 @@ def make_parser():
 
 def main():
     env = validate_env()
-    config_logging(env)
-    cd = CacheDirectory(env)
+    config_logging()
+    cd = CacheDirectory()
     args = make_parser().parse_args()
     if args.action == 'cache_sites':
         do_cache_sites(cd, env)
@@ -536,7 +548,3 @@ def main():
         do_reveal_icon(cd, env)
     else:
         raise NotImplementedError
-
-
-if __name__ == '__main__':
-    main()
