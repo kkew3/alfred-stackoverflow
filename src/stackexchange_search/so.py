@@ -12,7 +12,7 @@ from pathlib import Path
 import os
 import hashlib
 import json
-from dataclasses import dataclass
+import dataclasses
 import io
 import logging
 
@@ -20,7 +20,7 @@ import requests
 from PIL import Image
 
 
-@dataclass
+@dataclasses.dataclass
 class Answer:
     title: str
     link: str
@@ -29,7 +29,7 @@ class Answer:
     score: int
 
 
-@dataclass
+@dataclasses.dataclass
 class Site:
     id_: str
     name: str
@@ -38,12 +38,12 @@ class Site:
     is_meta: bool
 
 
-@dataclass
+@dataclasses.dataclass
 class QuotaInfo:
     quota_remaining: int
 
 
-@dataclass
+@dataclasses.dataclass
 class EnvParams:
     cache_max_age: int
     ignore_meta_sites: bool
@@ -273,7 +273,7 @@ def load_sites_from_cache(path: Path) -> ty.List[Site]:
 
 def dump_sites_to_cache(sites: ty.List[Site], path: Path) -> None:
     with open(path, 'w', encoding='utf-8') as outfile:
-        json.dump(sites, outfile)
+        json.dump(sites, outfile, default=dataclasses.astuple)
 
 
 def load_answers_from_cache(path: Path):
@@ -283,7 +283,8 @@ def load_answers_from_cache(path: Path):
 
 def dump_answers_to_cache(answers: ty.List[Answer], path: Path) -> None:
     with gzip.open(path, 'wb') as outfile:
-        outfile.write(json.dumps(answers).encode('utf-8'))
+        outfile.write(
+            json.dumps(answers, default=dataclasses.astuple).encode('utf-8'))
 
 
 def older_than(path: Path, seconds: int) -> bool:
