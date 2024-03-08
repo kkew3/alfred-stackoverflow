@@ -2,7 +2,7 @@
 
 ## Installation
 
-In terminal (replace `/path/to/repo` to your directory path):
+In terminal (replace `/path/to/repo` with your directory path):
 
 ```bash
 git clone https://github.com/kkew3/alfred-stackoverflow.git /path/to/repo
