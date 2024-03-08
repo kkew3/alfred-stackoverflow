@@ -2,8 +2,29 @@
 
 ## Installation
 
-1. Clone this repository.
-2. Double-click `StackExchange Search.alfredworkflow`.
+In terminal (replace `/path/to/repo` to your directory path):
+
+```bash
+git clone https://github.com/kkew3/alfred-stackoverflow.git /path/to/repo
+cd /path/to/repo
+# create python virtual environment
+python3 -m venv venv
+# activate the environment
+. venv/bin/activate
+# install dependencies; the --find-links option is required to install
+# `alfred-fzf-helper`
+pip install --find-links https://kkew3.github.io/pip -r requirements.txt
+# install this package
+pip install .
+# let's call the python3 path in clipboard "Python Runtime"
+which python3 | tr -d '\n' | pbcopy
+# deactivate the environment
+deactivate
+```
+
+Double-click `StackExchange Search.alfredworkflow`.
+When configuring the workflow, paste the Python Runtime into field `Python Runtime`.
+Then configure other items to your need.
 
 ## Usage
 
@@ -38,6 +59,7 @@ Detailed usage:
 - `python >= 3.7`
 - [`Pillow`](https://pillow.readthedocs.io/en/stable/)
 - [`requests`](https://requests.readthedocs.io/en/latest/)
+- [`alfred-fzf-helper`](https://github.com/kkew3/alfred_fzf_helper)
 
 ## Other dependencies
 
