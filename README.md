@@ -11,9 +11,8 @@ cd /path/to/repo
 python3 -m venv venv
 # activate the environment
 . venv/bin/activate
-# install dependencies; the --find-links option is required to install
-# `alfred-fzf-helper`
-pip install --find-links https://kkew3.github.io/pip -r requirements.txt
+# install dependencies
+pip install -r requirements.txt
 # install this package
 pip install .
 # let's call the python3 path in clipboard "Python Runtime"
@@ -59,7 +58,6 @@ Detailed usage:
 - `python >= 3.7`
 - [`Pillow`](https://pillow.readthedocs.io/en/stable/)
 - [`requests`](https://requests.readthedocs.io/en/latest/)
-- [`alfred-fzf-helper`](https://github.com/kkew3/alfred_fzf_helper)
 
 ## Other dependencies
 
